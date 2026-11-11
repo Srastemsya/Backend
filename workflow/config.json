@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "spec_dir": "workflow/specs/discovery-v1",
+  "base_branch": "dev",
+  "max_fix_rounds": 3,
+  "max_active_specs": 1,
+  "test_commands": {},
+  "create_pr": true,
+  "merge": false
+}
