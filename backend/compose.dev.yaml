@@ -1,0 +1,6 @@
+services:
+  identity:
+    environment:
+      APP_ENV: dev
+      MOCK_OTP: "true"
+      DEV_OTP: ${DEV_OTP:-0427}
