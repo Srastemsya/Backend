@@ -66,6 +66,8 @@ services:
       DATABASE_URL: postgresql://swipes:${SWIPES_DB_PASSWORD:-swipes-local}@swipes-db/swipes
     depends_on:
       swipes-db: {condition: service_healthy}
+      catalog: {condition: service_healthy}
+      identity: {condition: service_healthy}
       redis: {condition: service_healthy}
       keys: {condition: service_completed_successfully}
     volumes:

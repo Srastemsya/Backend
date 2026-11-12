@@ -30,7 +30,7 @@ acl = ["user default off", "user health on nopass +ping"]
 acl_rules = {
     "identity": "~auth:* ~otp:* +ping +get +set +del +multi +exec +client|setinfo",
     "catalog": "%R~auth:* ~cache:catalog:* +ping +get +set +del +client|setinfo",
-    "swipes": "%R~auth:* ~cache:swipes:* ~room:* +ping +get +set +del +publish +client|setinfo",
+    "swipes": "%R~auth:* ~cache:swipes:* &room:* +ping +get +set +del +publish +subscribe +unsubscribe +client|setinfo",
 }
 for role, rules in acl_rules.items():
     password_dir = private_dir if role == "identity" else Path(f"/{role}")

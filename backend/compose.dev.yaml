@@ -7,3 +7,6 @@ services:
   catalog:
     environment:
       APP_ENV: dev
+  swipes:
+    environment:
+      APP_ENV: dev

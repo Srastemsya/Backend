@@ -67,6 +67,9 @@ async def lifespan(app):
             migrate(db)
             if ENV == "dev":
                 seed(db)
+        if SERVICE == "swipes":
+            from swipes_schema import migrate
+            migrate(db)
         db.execute("INSERT INTO schema_versions VALUES (1) ON CONFLICT DO NOTHING")
     reason = readiness()
     logging.warning("%s v1 env=%s db_host=%s readiness=%s kafka=%s",
@@ -183,6 +186,10 @@ else:
             return app.openapi_schema
 
         app.openapi = catalog_openapi
+
+    if SERVICE == "swipes":
+        from swipes import router
+        app.include_router(router)
 
     @app.api_route("/v1/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
     def access_gate(request: Request, path: str):

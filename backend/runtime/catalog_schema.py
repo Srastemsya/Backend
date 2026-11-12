@@ -148,3 +148,33 @@ def seed(db):
             ON CONFLICT DO NOTHING
         """, (identifier, dev_account_id(owner), purpose, status,
               f"https://media.example.test/{identifier}.png"))
+
+
+    seed_swipes(db)
+
+
+def seed_swipes(db):
+    for category, label, kinds, position in [
+        ("dev-swipe-places", "Места для проверки свайпов", ["PLACE"], 90),
+        ("dev-swipe-events", "События для проверки свайпов", ["EVENT"], 91),
+    ]:
+        db.execute("INSERT INTO catalog_categories VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+                   (category, label, kinds, position))
+    for index in range(1, 23):
+        price = 1000 if index <= 20 else (500 if index == 21 else None)
+        for kind, suffix, category in [
+            ("PLACE", "place", "dev-swipe-places"),
+            ("EVENT", "event", "dev-swipe-events"),
+        ]:
+            starts = datetime(2090, 1, 2, tzinfo=timezone.utc) + timedelta(minutes=index) if kind == "EVENT" else None
+            title = f"Стендовый вариант {index}"
+            db.execute("""
+                INSERT INTO catalog_objects (
+                    kind, id, title, description, category_id, latitude, longitude, address,
+                    price_minor, published, organizer_id, starts_at, ends_at, time_zone
+                ) VALUES (%s,%s,%s,%s,%s,43.12,131.9,'Владивосток',%s,true,%s,%s,%s,%s)
+                ON CONFLICT DO NOTHING
+            """, (kind, f"dev-swipe-{suffix}-{index:02}", title, title, category, price,
+                  dev_account_id(1) if starts else None, starts,
+                  starts + timedelta(hours=2) if starts else None,
+                  "Asia/Vladivostok" if starts else None))
