@@ -28,10 +28,11 @@ SESSION_TTL = 30 * 86400
 
 
 class ApiError(Exception):
-    def __init__(self, status, code, headers=None):
+    def __init__(self, status, code, headers=None, details=None):
         self.status = status
         self.code = code
         self.headers = headers
+        self.details = details
 
 
 def connect():
@@ -60,6 +61,11 @@ async def lifespan(app):
         if SERVICE == "identity":
             from identity import migrate
             migrate(db)
+        if SERVICE == "catalog":
+            from catalog_schema import migrate, seed
+            migrate(db)
+            if ENV == "dev":
+                seed(db)
         db.execute("INSERT INTO schema_versions VALUES (1) ON CONFLICT DO NOTHING")
     reason = readiness()
     logging.warning("%s v1 env=%s db_host=%s readiness=%s kafka=compose-managed",
@@ -72,14 +78,16 @@ app = FastAPI(lifespan=lifespan)
 
 @app.exception_handler(ApiError)
 async def api_error(request, error):
-    return JSONResponse({"error": {"code": error.code, "message": error.code,
-                                   "requestId": str(uuid4())}},
-                        status_code=error.status, headers=error.headers)
+    payload = {"code": error.code, "message": error.code, "requestId": str(uuid4())}
+    if error.details is not None:
+        payload["details"] = error.details
+    return JSONResponse({"error": payload}, status_code=error.status, headers=error.headers)
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_error(request, error):
-    return await api_error(request, ApiError(422, "VALIDATION_ERROR"))
+    fields = {str(entry["loc"][-1]): "INVALID_VALUE" for entry in error.errors()}
+    return await api_error(request, ApiError(422, "VALIDATION_ERROR", details={"fields": fields}))
 
 
 @app.exception_handler(HTTPException)
@@ -149,11 +157,13 @@ if SERVICE == "identity":
     from identity import router
     app.include_router(router)
 else:
+    if SERVICE == "catalog":
+        from catalog import router
+        app.include_router(router)
+
     @app.api_route("/v1/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
     def access_gate(request: Request, path: str):
         authenticate(request, complete=True)
-        if SERVICE == "catalog" and path == "home" and request.method == "GET":
-            return {"quickCategories": [], "collections": [], "upcoming": []}
         if SERVICE == "swipes" and path == "rooms" and request.method == "GET":
             return {"items": [], "nextCursor": None}
         raise ApiError(404, "NOT_FOUND")

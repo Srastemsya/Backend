@@ -1,6 +1,6 @@
 name: srastemsya
 x-app: &app
-  image: srastemsya-runtime:local
+  image: ${COMPOSE_PROJECT_NAME:-srastemsya}-runtime:local
   build: .
   restart: unless-stopped
   healthcheck:
@@ -21,7 +21,7 @@ x-env: &env
   ADMIN_JWT_KEY: ${ADMIN_JWT_KEY:-}
 services:
   keys:
-    image: srastemsya-runtime:local
+    image: ${COMPOSE_PROJECT_NAME:-srastemsya}-runtime:local
     build: .
     command: ["python", "keys.py"]
     volumes:

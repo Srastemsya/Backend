@@ -49,11 +49,12 @@ def migrate(db):
     if ENV == "dev" and MOCK:
         if not re.fullmatch(r"[0-9]{4}", OTP):
             raise RuntimeError("Invalid dev OTP format")
+        from dev_fixtures import dev_account_id
         for index, destination in enumerate(CONTACTS, 1):
             db.execute("""
                 INSERT INTO accounts VALUES (%s, %s, %s, DATE '1995-01-01')
                 ON CONFLICT (destination) DO NOTHING
-            """, (str(uuid4()), destination, f"Участник {index}"))
+            """, (dev_account_id(index), destination, f"Участник {index}"))
 
 
 class Challenge(BaseModel):
