@@ -1,0 +1,27 @@
+# macOS and IDE
+.DS_Store
+.idea/
+*.iml
+
+# Local environment
+.env
+.env.*
+!.env.example
+local.properties
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+
+# Gradle and Android build outputs
+.gradle/
+.kotlin/
+build/
+*.apk
+*.aab
+/srastemsya-ui-kit-kmp-*.zip
