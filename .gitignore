@@ -25,3 +25,16 @@ build/
 *.apk
 *.aab
 /srastemsya-ui-kit-kmp-*.zip
+
+# Project-local OpenCode binary
+/.opencode/bin/
+/.opencode/state/
+
+# Local distribution archive
+/opencode-team-kit.zip
+
+# OpenCode generated dependencies
+/.opencode/node_modules/
+/.opencode/package.json
+/.opencode/package-lock.json
+/.opencode/bun.lock

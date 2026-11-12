@@ -10,3 +10,6 @@ services:
   swipes:
     environment:
       APP_ENV: dev
+  nginx:
+    volumes:
+      - ./dev-media:/usr/share/nginx/html/dev-media:ro

@@ -92,6 +92,14 @@ def migrate(db):
     db.execute("INSERT INTO schema_versions VALUES (3) ON CONFLICT DO NOTHING")
 
 
+DEV_PHOTOS = ("gallery", "workshop", "concert", "waterfront", "cafe", "museum")
+OUTDOOR_EVENTS = (
+    ("Акустический концерт на закате", "concert"),
+    ("Пешая экскурсия вдоль залива", "waterfront"),
+    ("Кофе на открытой террасе", "cafe"),
+)
+
+
 def seed(db):
     for row in [
         ("culture", "Культура", ["EVENT", "PLACE"], 1),
@@ -117,8 +125,9 @@ def seed(db):
         ("EVENT", "dev-vlad-draft", "Черновик экскурсии", "outdoors", 43.123, 131.876, 0, False, 4, None),
     ]
     for index in range(1, 22):
-        objects.append(("EVENT", f"dev-vlad-outdoor-{index:02}", f"Прогулка по городу {index}",
-                        "outdoors", 43.12, 131.9, None, True, index + 4, None))
+        title, _ = OUTDOOR_EVENTS[(index - 1) % len(OUTDOOR_EVENTS)]
+        objects.append(("EVENT", f"dev-vlad-outdoor-{index:02}", title, "outdoors",
+                        43.12, 131.9, None, True, index + 4, None))
     for kind, identifier, title, category, lat, lon, price, published, days, capacity in objects:
         starts = now + timedelta(days=days) if days else None
         db.execute("""
@@ -151,6 +160,36 @@ def seed(db):
 
 
     seed_swipes(db)
+    seed_photos(db, objects)
+
+
+def seed_photos(db, objects):
+    featured = {
+        "dev-vlad-museum": "museum",
+        "dev-vlad-cafe": "cafe",
+        "dev-vlad-walk": "waterfront",
+        "dev-vlad-exhibit": "gallery",
+        "dev-vlad-workshop": "workshop",
+    }
+    featured.update({
+        f"dev-vlad-outdoor-{index:02}": OUTDOOR_EVENTS[(index - 1) % len(OUTDOOR_EVENTS)][1]
+        for index in range(1, 22)
+    })
+    for index, (kind, identifier, *_) in enumerate(objects):
+        photo = featured.get(identifier, DEV_PHOTOS[index % len(DEV_PHOTOS)])
+        attach_dev_photo(db, kind, identifier, photo)
+    for index in range(1, 23):
+        photo = DEV_PHOTOS[(index - 1) % len(DEV_PHOTOS)]
+        attach_dev_photo(db, "EVENT", f"dev-swipe-event-{index:02}", photo)
+        attach_dev_photo(db, "PLACE", f"dev-swipe-place-{index:02}", photo)
+
+
+def attach_dev_photo(db, kind, identifier, photo):
+    cover = Jsonb({"id": f"dev-photo-{photo}", "url": f"/dev-media/{photo}.jpg", "expiresAt": None})
+    db.execute(
+        "UPDATE catalog_objects SET cover = %s WHERE kind = %s AND id = %s AND cover IS NULL",
+        (cover, kind, identifier),
+    )
 
 
 def seed_swipes(db):
