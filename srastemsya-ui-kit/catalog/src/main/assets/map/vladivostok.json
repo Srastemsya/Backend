@@ -1,0 +1,161 @@
+{
+  "version": 8,
+  "sources": {
+    "osm": {
+      "type": "vector",
+      "tiles": [
+        "asset://map/tiles/{z}/{x}/{y}.pbf"
+      ],
+      "bounds": [
+        131.67,
+        42.89,
+        132.21,
+        43.28
+      ],
+      "minzoom": 11,
+      "maxzoom": 12,
+      "attribution": "<a href=\"https://openfreemap.org\">OpenFreeMap</a> · <a href=\"https://www.openmaptiles.org/\">© OpenMapTiles</a> · <a href=\"https://www.openstreetmap.org/copyright\">© OpenStreetMap contributors</a>"
+    },
+    "osm-live": {
+      "type": "raster",
+      "tiles": [
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+      ],
+      "tileSize": 256,
+      "maxzoom": 19,
+      "attribution": "<a href=\"https://www.openstreetmap.org/copyright\">© OpenStreetMap contributors</a>"
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "#F8F8FD"
+      }
+    },
+    {
+      "id": "landcover",
+      "type": "fill",
+      "source": "osm",
+      "source-layer": "landcover",
+      "paint": {
+        "fill-color": "#DCE8DD",
+        "fill-opacity": 0.7
+      }
+    },
+    {
+      "id": "parks",
+      "type": "fill",
+      "source": "osm",
+      "source-layer": "park",
+      "paint": {
+        "fill-color": "#D0E5D6",
+        "fill-opacity": 0.8
+      }
+    },
+    {
+      "id": "water",
+      "type": "fill",
+      "source": "osm",
+      "source-layer": "water",
+      "paint": {
+        "fill-color": "#A6BDF2"
+      }
+    },
+    {
+      "id": "waterways",
+      "type": "line",
+      "source": "osm",
+      "source-layer": "waterway",
+      "paint": {
+        "line-color": "#A6BDF2",
+        "line-width": 1.5
+      }
+    },
+    {
+      "id": "buildings",
+      "type": "fill",
+      "source": "osm",
+      "source-layer": "building",
+      "paint": {
+        "fill-color": "#E1DFE8",
+        "fill-opacity": 0.7
+      },
+      "minzoom": 13
+    },
+    {
+      "id": "road-casing",
+      "type": "line",
+      "source": "osm",
+      "source-layer": "transportation",
+      "paint": {
+        "line-color": "#CCD0DF",
+        "line-width": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          11,
+          1.2,
+          16,
+          7
+        ]
+      },
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      }
+    },
+    {
+      "id": "roads",
+      "type": "line",
+      "source": "osm",
+      "source-layer": "transportation",
+      "paint": {
+        "line-color": [
+          "match",
+          [
+            "get",
+            "class"
+          ],
+          [
+            "motorway",
+            "trunk",
+            "primary"
+          ],
+          "#F1E2C0",
+          "#FFFFFF"
+        ],
+        "line-width": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          11,
+          0.6,
+          16,
+          5
+        ]
+      },
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      }
+    },
+    {
+      "id": "online-map",
+      "type": "raster",
+      "source": "osm-live",
+      "paint": {
+        "raster-fade-duration": 0
+      }
+    }
+  ]
+}
