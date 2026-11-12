@@ -4,14 +4,28 @@
 
 ## Установка и обновление
 
-Загрузите архив `opencode-darwin-arm64.zip` со страницы [стабильных релизов](https://github.com/anomalyco/opencode/releases/latest). Распакуйте исполняемый файл в `.opencode/bin/` и выполните `chmod +x .opencode/bin/opencode`. Тот же порядок применяется для обновления. Проверьте версию командой `.opencode/launch --version`. При наличии системного CLI можно использовать его через `OPENCODE_BIN`.
+Основной лаунчер использует **OpenCode 2.2.7** из `.opencode/bin/v2/opencode`. Для macOS Apple Silicon выполните из корня проекта:
+
+```sh
+(
+  set -eu
+  archive=$(mktemp)
+  trap 'rm -f "$archive"' EXIT
+  curl -fsSL https://registry.npmjs.org/@opencode/cli-darwin-arm64/-/cli-darwin-arm64-2.2.7.tgz -o "$archive"
+  mkdir -p .opencode/bin/v2
+  tar -xzf "$archive" -C .opencode/bin/v2 --strip-components 2 package/bin/opencode
+  .opencode/launch --version
+)
+```
+
+Для другой платформы скачайте CLI 2.2.7 через [официальный канал OpenCode 2.x](https://opencode.ai/v2/docs/) и укажите его абсолютный путь в `OPENCODE_BIN`.
 
 ## Подключение API
 
 Выполните в zsh из корня проекта. Подставьте базовый URL провайдера, обычно с суффиксом `/v1`, и точный ID модели с поддержкой tool calling.
 
 ```zsh
-export COMPAT_API_BASE='https://provider.example/v1'
+export COMPAT_API_BASE='https://gptunnel.ru/v1'
 export COMPAT_API_MODEL='model-id'
 read -rs 'COMPAT_API_KEY?Ключ API: '
 echo

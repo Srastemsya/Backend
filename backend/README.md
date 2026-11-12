@@ -68,3 +68,65 @@ docker compose -f compose.yaml -f compose.dev.yaml exec -T kafka /opt/kafka/bin/
 Swipes хранит снимки выдачи, комнаты и повторяемые ответы POST в своей PostgreSQL. Новые снимки пула читаются из catalog, имена новых участников читаются из identity. Обновления версии комнаты после commit передаются через Redis Pub/Sub. PostgreSQL остаётся источником состояния для повторного чтения. Подробности см. в [контракте внутренней интеграции](../docs/contracts/catalog-integration.md).
 
 [Справочник по сервисам и маршрутам](../docs/services/README.md).
+
+## GitHub Actions и стенды мероприятия
+
+| Событие | Проверки и сборка | Деплой на сервер |
+| --- | --- | --- |
+| PR в `dev` или `main` | Сборка Docker-образа и проверка readiness трёх сервисов | — |
+| Push в `dev` | Повторная сборка и readiness | `srastemsya-staging` на `127.0.0.1:18080` |
+| Push в `main`, включая merge PR | Новая сборка из коммита `main` и readiness | `srastemsya-demo` на `127.0.0.1:8080` |
+
+Обе копии используют `compose.dev.yaml` с mock OTP и демоданными.
+У них отдельные контейнеры, сети, базы, тома и серверные настройки.
+Actions передаёт собранный образ через SSH. Сервер импортирует образ и запускает
+Compose с `--no-build`. Обновление сохраняет тома и проверяет readiness после запуска.
+
+### Подключение сервера
+
+1. На Linux x86-64 подготовьте Docker Engine, актуальный Docker Compose,
+   Bash, curl и пользователя SSH с доступом к Docker. Убедитесь, что порты
+   8080 и 18080 свободны и GitHub-hosted runner может подключиться по SSH.
+2. В GitHub создайте Environments `staging` и `demo`. Ограничьте деплой
+   ветками `dev` и `main` соответственно. Для обоих задайте variables
+   `SSH_HOST`, `SSH_USER` и при необходимости `SSH_PORT`. Добавьте secrets
+   `SSH_PRIVATE_KEY` (отдельный ключ автоматизации для CI) и `SSH_KNOWN_HOSTS`
+   (проверенная запись публичного host key сервера). Публичный ключ CI
+   добавьте в `authorized_keys` пользователя деплоя.
+3. В домашнем каталоге этого пользователя создайте
+   `~/srastemsya/staging/.env` и `~/srastemsya/demo/.env` с правами `0600`.
+   В каждом задайте отдельные случайные URL-safe значения
+   `IDENTITY_DB_PASSWORD`, `CATALOG_DB_PASSWORD` и `SWIPES_DB_PASSWORD`.
+   При необходимости задайте `DEV_OTP`. После первой инициализации томов
+   смена паролей в env-файле требует соответствующей смены паролей в PostgreSQL.
+4. Добавьте в каждом GitHub Environment secret `API_DOMAIN` со своим
+   DNS-именем в нижнем регистре, без схемы и порта. Оба имени должны указывать
+   на сервер. Откройте входящие 80 и 443 для HTTP-01 и HTTPS. На сервере
+   установите Nginx, Certbot с плагином Nginx и `flock`. Включите Nginx
+   и автоматическое продление сертификатов Certbot через пакетный таймер.
+
+5. Администратор сервера один раз устанавливает проверенную копию скрипта
+   из `backend/` и разрешает пользователю деплоя запуск именно этого файла
+   через `sudo -n`. Файл должен оставаться доступным для записи только root.
+
+   ```sh
+   sudo install -o root -g root -m 0755 scripts/configure-https.sh /usr/local/sbin/srastemsya-configure-https
+   sudo visudo -f /etc/sudoers.d/srastemsya-https
+   ```
+
+   Строка для sudoers, где `DEPLOY_USER` нужно заменить именем пользователя:
+
+   ```text
+   DEPLOY_USER ALL=(root) NOPASSWD: /usr/local/sbin/srastemsya-configure-https
+   ```
+
+6. После первого push workflow настроит отдельный виртуальный хост для
+   окружения, запросит сертификат, включит редирект на HTTPS и проверит
+   готовность сервисов через публичный домен. Nginx на сервере проксирует
+   в контейнеры на localhost. После настройки обоих стендов проверьте
+   продление командой `sudo certbot renew --dry-run`. При смене домена
+   администратор сначала корректирует существующий виртуальный хост.
+
+Оба стенда принимают mock OTP. Используйте только демонстрационные данные.
+
+[GitHub Actions Environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments) · [Certbot для Nginx](https://certbot.eff.org/instructions?ws=nginx&os=debiantesting)

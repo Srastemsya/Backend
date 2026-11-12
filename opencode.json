@@ -12,19 +12,10 @@
     "external_directory": "ask"
   },
   "mcp": {
-    "figma": {
-      "type": "remote",
-      "url": "https://mcp.figma.com/mcp",
-      "oauth": {}
-    }
-  },
-  "provider": {
-    "compatible": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "Custom OpenAI-compatible",
-      "options": {
-        "baseURL": "{env:COMPAT_API_BASE}",
-        "apiKey": "{env:COMPAT_API_KEY}"
+    "servers": {
+      "figma": {
+        "type": "remote",
+        "url": "https://mcp.figma.com/mcp"
       }
     }
   }

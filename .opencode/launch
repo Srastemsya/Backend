@@ -1,9 +1,10 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
-bin="${OPENCODE_BIN:-$PWD/.opencode/bin/opencode}"
+bin="${OPENCODE_BIN:-$PWD/.opencode/bin/v2/opencode}"
 if [ ! -x "$bin" ]; then
-  bin="$(command -v opencode)" || { echo 'OpenCode CLI отсутствует. См. README.opencode.md.' >&2; exit 1; }
+  echo "OpenCode 2.2.7 не найден: $bin. См. README.opencode.md." >&2
+  exit 1
 fi
 state="$PWD/.opencode/state"
 export XDG_CONFIG_HOME="$state/config"
@@ -23,8 +24,12 @@ import os
 model = os.environ["COMPAT_API_MODEL"]
 print(json.dumps({
     "model": f"compatible/{model}",
-    "provider": {
+    "providers": {
         "compatible": {
+            "name": "Custom OpenAI-compatible",
+            "env": ["COMPAT_API_KEY"],
+            "package": "@opencode/ai/providers/openai-compatible",
+            "settings": {"baseURL": os.environ["COMPAT_API_BASE"]},
             "models": {model: {"name": model}},
         }
     },
