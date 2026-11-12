@@ -49,6 +49,7 @@ services:
     environment:
       <<: *env
       SERVICE: catalog
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       DATABASE_URL: postgresql://catalog:${CATALOG_DB_PASSWORD:-catalog-local}@catalog-db/catalog
     depends_on:
       catalog-db: {condition: service_healthy}
@@ -108,6 +109,19 @@ services:
   kafka:
     image: apache/kafka:3.9.1
     restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes: [kafka:/var/lib/kafka/data]
     healthcheck:
       test: ["CMD", "/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "localhost:9092", "--list"]
       interval: 5s
@@ -138,3 +152,4 @@ volumes:
   redis-acl:
   catalog-redis-key:
   swipes-redis-key:
+  kafka:

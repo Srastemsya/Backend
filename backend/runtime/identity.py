@@ -7,18 +7,20 @@ import re
 import secrets
 import time
 from datetime import date, datetime, timezone
+from typing import Annotated
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 import jwt
 from cryptography.fernet import Fernet
-from fastapi import APIRouter, Header, Request, Response
+from fastapi import APIRouter, Header, Query, Request, Response
 from pydantic import BaseModel
 
 from runtime import (ACCESS_TTL, AUDIENCE, CACHE, ENV, ISSUER, KEYS, MOCK,
                      SESSION_TTL, ApiError, authenticate, connect)
 
 router = APIRouter(prefix="/v1")
+internal_router = APIRouter(prefix="/internal/identity")
 OTP = os.getenv("DEV_OTP", "0427")
 PEPPER = os.environ.get("IDENTITY_SECRET", "").encode() or (KEYS / "identity-secret").read_bytes()
 REPLAY = Fernet(base64.urlsafe_b64encode(hashlib.sha256(b"replay:" + PEPPER).digest()))
@@ -280,3 +282,11 @@ def logout(request: Request):
         lock(db, f"refresh:{sid}")
         CACHE.delete(f"auth:session:{sid}")
     return Response(status_code=204)
+
+
+@internal_router.get("/participants")
+def participants(request: Request, id: Annotated[list[str], Query(min_length=1, max_length=20)]):
+    authenticate(request, complete=True)
+    with connect() as db:
+        rows = db.execute("SELECT id, display_name FROM accounts WHERE id = ANY(%s)", (id,)).fetchall()
+    return {"items": [{"id": user_id, "displayName": name, "avatar": None} for user_id, name in rows]}

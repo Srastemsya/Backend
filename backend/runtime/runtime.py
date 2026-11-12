@@ -9,6 +9,7 @@ import psycopg
 import redis
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse, HTMLResponse
 from starlette.exceptions import HTTPException
 
@@ -68,9 +69,15 @@ async def lifespan(app):
                 seed(db)
         db.execute("INSERT INTO schema_versions VALUES (1) ON CONFLICT DO NOTHING")
     reason = readiness()
-    logging.warning("%s v1 env=%s db_host=%s readiness=%s kafka=compose-managed",
-                    SERVICE, ENV, psycopg.conninfo.conninfo_to_dict(DSN)["host"], reason or "ready")
-    yield
+    logging.warning("%s v1 env=%s db_host=%s readiness=%s kafka=%s",
+                    SERVICE, ENV, psycopg.conninfo.conninfo_to_dict(DSN)["host"], reason or "ready",
+                    "connecting" if SERVICE == "catalog" else "unused")
+    if SERVICE == "catalog":
+        from catalog_events import relay
+        with relay():
+            yield
+    else:
+        yield
 
 
 app = FastAPI(lifespan=lifespan)
@@ -154,12 +161,28 @@ def authenticate(request, complete=False):
 
 
 if SERVICE == "identity":
-    from identity import router
+    from identity import internal_router, router
     app.include_router(router)
+    app.include_router(internal_router, include_in_schema=False)
 else:
     if SERVICE == "catalog":
         from catalog import router
+        from events import CreateEvent, internal_router, router as events_router
         app.include_router(router)
+        app.include_router(events_router)
+        app.include_router(internal_router, include_in_schema=False)
+
+        def catalog_openapi():
+            if app.openapi_schema is None:
+                schema = get_openapi(title=app.title, version=app.version, routes=app.routes)
+                publication = CreateEvent.model_json_schema(ref_template="#/components/schemas/{model}")
+                schemas = schema.setdefault("components", {}).setdefault("schemas", {})
+                schemas.update(publication.pop("$defs", {}))
+                schemas["CreateEvent"] = publication
+                app.openapi_schema = schema
+            return app.openapi_schema
+
+        app.openapi = catalog_openapi
 
     @app.api_route("/v1/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
     def access_gate(request: Request, path: str):

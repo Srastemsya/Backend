@@ -65,6 +65,31 @@ def migrate(db):
             FOR EACH STATEMENT EXECUTE FUNCTION advance_catalog_cache_revision()
         """)
     db.execute("INSERT INTO schema_versions VALUES (2) ON CONFLICT DO NOTHING")
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS catalog_media (
+            id text PRIMARY KEY, owner_id text NOT NULL, purpose text NOT NULL,
+            status text NOT NULL, url text NOT NULL, expires_at timestamptz
+        );
+        CREATE TABLE IF NOT EXISTS catalog_event_retries (
+            user_id text NOT NULL, operation text NOT NULL, key text NOT NULL,
+            fingerprint text NOT NULL, status integer NOT NULL, response jsonb NOT NULL,
+            PRIMARY KEY (user_id, operation, key)
+        );
+        CREATE TABLE IF NOT EXISTS catalog_outbox (
+            revision bigint PRIMARY KEY, event_id text NOT NULL UNIQUE, object_id text NOT NULL,
+            occurred_at timestamptz NOT NULL, delivered_at timestamptz
+        );
+        CREATE INDEX IF NOT EXISTS catalog_outbox_pending ON catalog_outbox (revision)
+            WHERE delivered_at IS NULL;
+        CREATE INDEX IF NOT EXISTS catalog_afisha ON catalog_objects (starts_at, id)
+            WHERE published AND kind = 'EVENT';
+        CREATE INDEX IF NOT EXISTS catalog_active_registrations
+            ON catalog_registrations (event_id, created_at, id) WHERE status = 'CONFIRMED';
+        CREATE OR REPLACE TRIGGER advance_cache_revision
+        AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON catalog_registrations
+        FOR EACH STATEMENT EXECUTE FUNCTION advance_catalog_cache_revision();
+    """)
+    db.execute("INSERT INTO schema_versions VALUES (3) ON CONFLICT DO NOTHING")
 
 
 def seed(db):
@@ -111,3 +136,15 @@ def seed(db):
         VALUES ('dev-vlad-workshop-registration', 'dev-vlad-workshop', %s, 'CONFIRMED', %s)
         ON CONFLICT DO NOTHING
     """, (dev_account_id(2), now))
+
+    for identifier, owner, purpose, status in [
+        ("dev-event-cover-person1", 1, "EVENT_COVER", "READY"),
+        ("dev-event-cover-person2", 2, "EVENT_COVER", "READY"),
+        ("dev-event-cover-pending", 1, "EVENT_COVER", "PENDING"),
+        ("dev-event-cover-wrong-purpose", 1, "CHAT_ATTACHMENT", "READY"),
+    ]:
+        db.execute("""
+            INSERT INTO catalog_media VALUES (%s, %s, %s, %s, %s, NULL)
+            ON CONFLICT DO NOTHING
+        """, (identifier, dev_account_id(owner), purpose, status,
+              f"https://media.example.test/{identifier}.png"))

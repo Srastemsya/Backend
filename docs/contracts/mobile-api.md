@@ -88,7 +88,7 @@
 
 `Category = {id, label, kinds: Kind[]}`. `Collection = {id, title, cover: MediaRef|null, filters: CatalogFilters}`. Фильтры каталога — `{kind?, categoryId?, localDate?, maxPriceMinor?, onlyWithSeats?}`. Дата фильтрует дату начала события в `Asia/Vladivostok`. Ограничение цены исключает неизвестную цену. `onlyWithSeats=true` оставляет события по записи с положительным остатком.
 
-`CreateEvent = {title, description, categoryId, coverMediaId?, location, price?, startsAt, endsAt, timeZone, admission: {type: OPEN}|{type: REGISTRATION, capacity}}`. `endsAt > startsAt`, время начала при публикации находится в будущем. `endsAt` — предложенное обязательное поле, требуется решение по форме или вычислению. Счётчики, владелец и права вычисляются сервером.
+`CreateEvent = {title, description, categoryId, coverMediaId?, location, price?, startsAt, endsAt, timeZone, admission: {type: OPEN}|{type: REGISTRATION, capacity}}`. `endsAt > startsAt`, время начала при публикации находится в будущем. В Discovery v1 `endsAt` можно опустить, тогда сервер прибавляет к началу два часа. Для афиши Владивостока `timeZone=Asia/Vladivostok`. См. [правила публикации и участия](discovery-v1.md#афиша-публикация-и-участие). Счётчики, владелец и права вычисляются сервером.
 
 ## BE-04 · Подборка и комната
 

@@ -6,10 +6,10 @@ from typing import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AwareDatetime, BaseModel, Field, TypeAdapter, ValidationError, field_validator
 from psycopg.rows import dict_row
 
-from runtime import ApiError, CACHE, authenticate, connect
+from runtime import ApiError, CACHE, ENV, authenticate, connect
 
 router = APIRouter(prefix="/v1")
 PAGE_SIZE = 20
@@ -115,23 +115,45 @@ def card(row):
     }
 
 
-def detail(kind, identifier, user_id):
+def request_clock(request):
+    override = request.headers.get("X-Dev-Catalog-Now") if ENV == "dev" else None
+    if override is None:
+        return lambda: datetime.now(timezone.utc)
+    try:
+        fixed = TypeAdapter(AwareDatetime).validate_python(override)
+    except ValidationError:
+        raise ApiError(422, "VALIDATION_ERROR", details={"fields": {"now": "INVALID_VALUE"}}) from None
+    return lambda: fixed
+
+
+def registration_dto(row):
+    return {
+        "id": row["id"], "eventId": row["event_id"], "userId": row["user_id"],
+        "status": row["status"], "createdAt": timestamp(row["created_at"]),
+        "removedAt": timestamp(row["removed_at"]),
+    }
+
+
+def detail(kind, identifier, user_id, clock):
     with db_connection() as db:
         db.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
         row = db.execute(SELECT_OBJECTS + " WHERE o.published AND o.kind = %s AND o.id = %s",
                          (kind.value, identifier)).fetchone()
         if row is None:
             raise ApiError(404, "NOT_FOUND")
-        fields = card(row)
         if kind != Kind.EVENT:
-            return {"card": fields, "description": row["description"]}
+            return {"card": card(row), "description": row["description"]}
         registration = db.execute("""
             SELECT * FROM catalog_registrations WHERE event_id = %s AND user_id = %s
         """, (identifier, user_id)).fetchone()
         saved = db.execute("""
             SELECT 1 FROM catalog_saved_events WHERE event_id = %s AND user_id = %s
         """, (identifier, user_id)).fetchone() is not None
-    now = datetime.now(timezone.utc)
+    return event_dto(row, user_id, clock(), registration, saved)
+
+
+def event_dto(row, user_id, now, registration=None, saved=False):
+    fields = card(row)
     phase = "UPCOMING" if now < row["starts_at"] else "ONGOING" if now < row["ends_at"] else "PAST"
     if row["organizer_id"] == user_id:
         role = "ORGANIZER"
@@ -142,7 +164,7 @@ def detail(kind, identifier, user_id):
     admission = fields["admission"]
     return {
         **{key: value for key, value in fields.items() if key != "ref"},
-        "id": identifier,
+        "id": row["id"],
         "organizerId": row["organizer_id"],
         "description": row["description"],
         "endsAt": timestamp(row["ends_at"]),
@@ -150,11 +172,7 @@ def detail(kind, identifier, user_id):
         "phase": phase,
         "viewer": {
             "role": role,
-            "registration": {
-                "id": registration["id"], "eventId": identifier, "userId": user_id,
-                "status": registration["status"], "createdAt": timestamp(registration["created_at"]),
-                "removedAt": timestamp(registration["removed_at"]),
-            } if registration else None,
+            "registration": registration_dto(registration) if registration else None,
             "canRegister": role == "VISITOR" and registration is None and phase == "UPCOMING"
             and admission["type"] == "REGISTRATION" and admission["remainingCount"] > 0,
             "canReadChat": False,
@@ -175,7 +193,7 @@ def parse_bbox(raw):
     return west, south, east, north
 
 
-def object_page(user_id, filters, cursor, *, q=None, bounds=None):
+def filtered_objects(filters, *, q=None, bounds=None):
     if filters.kind in {Kind.PLACE, Kind.ACTIVITY} and (filters.localDate or filters.onlyWithSeats):
         raise ApiError(400, "BAD_REQUEST")
     conditions = ["o.published"]
@@ -202,24 +220,46 @@ def object_page(user_id, filters, cursor, *, q=None, bounds=None):
         conditions.append("o.longitude BETWEEN %s AND %s AND o.latitude BETWEEN %s AND %s")
         params.extend((west, east, south, north))
 
-    scope = [user_id, filters.model_dump(mode="json"), q, list(bounds) if bounds else None]
-    if cursor:
-        encoded = CACHE.get(f"cache:catalog:cursor:{cursor}")
-        state = json.loads(encoded) if encoded else None
-        if state is None or state["scope"] != scope:
-            raise ApiError(409, "CURSOR_EXPIRED")
-        conditions.append("(o.kind, o.id) > (%s, %s)")
-        params.extend(state["after"])
-    query = SELECT_OBJECTS + " WHERE " + " AND ".join(conditions) + " ORDER BY o.kind, o.id LIMIT %s"
-    with db_connection() as db:
-        rows = db.execute(query, [*params, PAGE_SIZE + 1]).fetchall()
+    return conditions, params
+
+
+def read_cursor(cursor, scope):
+    if not cursor:
+        return None
+    encoded = CACHE.get(f"cache:catalog:cursor:{cursor}")
+    state = json.loads(encoded) if encoded else None
+    if state is None or state["scope"] != scope:
+        raise ApiError(409, "CURSOR_EXPIRED")
+    return state["after"]
+
+
+def page(rows, scope, key, project):
     next_cursor = None
     if len(rows) > PAGE_SIZE:
-        last = rows[PAGE_SIZE - 1]
-        state = {"scope": scope, "after": [last["kind"], last["id"]]}
+        state = {"scope": scope, "after": key(rows[PAGE_SIZE - 1])}
         next_cursor = uuid4().hex
         CACHE.set(f"cache:catalog:cursor:{next_cursor}", json.dumps(state), ex=CURSOR_TTL)
-    return {"items": [card(row) for row in rows[:PAGE_SIZE]], "nextCursor": next_cursor}
+    return {"items": [project(row) for row in rows[:PAGE_SIZE]], "nextCursor": next_cursor}
+
+
+def object_page(user_id, filters, cursor, *, q=None, bounds=None, starts_after=None):
+    conditions, params = filtered_objects(filters, q=q, bounds=bounds)
+    agenda = starts_after is not None
+    scope = [user_id, filters.model_dump(mode="json"), q, list(bounds) if bounds else None]
+    order = "o.kind, o.id"
+    if agenda:
+        scope.append("events")
+        conditions.append("o.starts_at > %s")
+        params.append(starts_after)
+        order = "o.starts_at, o.id"
+    after = read_cursor(cursor, scope)
+    if after:
+        conditions.append(f"({order}) > (%s, %s)")
+        params.extend(after)
+    query = SELECT_OBJECTS + " WHERE " + " AND ".join(conditions) + f" ORDER BY {order} LIMIT %s"
+    with db_connection() as db:
+        rows = db.execute(query, [*params, PAGE_SIZE + 1]).fetchall()
+    return page(rows, scope, lambda row: [timestamp(row["starts_at"]) if agenda else row["kind"], row["id"]], card)
 
 
 @router.get("/home")
@@ -257,10 +297,10 @@ def map_cards(user_id: Viewer, query: Annotated[MapQuery, Query()]):
 
 
 @router.get("/catalog/{kind}/{identifier}")
-def catalog_detail(kind: Kind, identifier: str, user_id: Viewer):
-    return detail(kind, identifier, user_id)
+def catalog_detail(kind: Kind, identifier: str, user_id: Viewer, request: Request):
+    return detail(kind, identifier, user_id, request_clock(request))
 
 
 @router.get("/events/{identifier}")
-def event_detail(identifier: str, user_id: Viewer):
-    return detail(Kind.EVENT, identifier, user_id)
+def event_detail(identifier: str, user_id: Viewer, request: Request):
+    return detail(Kind.EVENT, identifier, user_id, request_clock(request))
