@@ -11,7 +11,7 @@ from kafka import KafkaConsumer
 from starlette.requests import Request
 
 from runtime import CACHE, ENV
-from catalog import Filters, Kind, db_connection, detail, home, object_page
+from catalog import Filters, Kind, db_connection, detail, home, object_page, suggestions
 from catalog_events import BOOTSTRAP, TOPIC
 from dev_fixtures import dev_account_id
 from events import CandidateQuery, candidates, notify_change, publish_event, register
@@ -92,6 +92,13 @@ class CatalogArchitecture(unittest.TestCase):
                          {"kind": "PLACE", "id": "dev-vlad-museum"})
         fixture = detail(Kind.EVENT, "dev-vlad-workshop", self.visitor, lambda: now)
         self.assertEqual(fixture["viewer"]["registration"]["status"], "CONFIRMED")
+
+    def test_search_suggestions_omit_empty_and_draft_titles(self):
+        self.assertEqual(suggestions(self.visitor), {"items": []})
+        self.assertEqual(suggestions(self.visitor, "  "), {"items": []})
+        self.assertEqual(suggestions(self.visitor, "городской музей"),
+                         {"items": [{"label": "Городской музей", "query": "Городской музей"}]})
+        self.assertEqual(suggestions(self.visitor, "Черновик экскурсии"), {"items": []})
 
     def test_kafka_delivery_and_revision_cache_invalidation(self):
         previous = self.revision()

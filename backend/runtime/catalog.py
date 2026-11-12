@@ -296,6 +296,20 @@ def map_cards(user_id: Viewer, query: Annotated[MapQuery, Query()]):
     return object_page(user_id, filters, query.cursor, bounds=parse_bbox(query.bbox))
 
 
+@router.get("/catalog/search/suggestions")
+def suggestions(user_id: Viewer, q: str | None = None):
+    term = q.strip() if q else ""
+    if not term:
+        return {"items": []}
+    with db_connection() as db:
+        rows = db.execute("""
+            SELECT DISTINCT title FROM catalog_objects
+            WHERE published AND strpos(lower(title), lower(%s)) > 0
+            ORDER BY title LIMIT %s
+        """, (term, PAGE_SIZE)).fetchall()
+    return {"items": [{"label": row["title"], "query": row["title"]} for row in rows]}
+
+
 @router.get("/catalog/{kind}/{identifier}")
 def catalog_detail(kind: Kind, identifier: str, user_id: Viewer, request: Request):
     return detail(kind, identifier, user_id, request_clock(request))

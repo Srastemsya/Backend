@@ -76,7 +76,7 @@
 | `GET /home` | `{quickCategories: Category[], collections: Collection[], upcoming: CatalogCard[]}`. |
 | `GET /catalog/categories` | `{items: Category[]}`. |
 | `GET /catalog/map` | `bbox=west,south,east,north&kind=EVENT\|PLACE\|ACTIVITY` и фильтры → страницы `CatalogCard`. |
-| `GET /catalog/search/suggestions` | `q?` → `{items: [{label, query}]}`. Недавние запросы в черновике хранятся на устройстве. |
+| `GET /catalog/search/suggestions` | `q?` → `{items: [{label, query}]}`. Без текста список пуст. С текстом возвращается до 20 уникальных названий опубликованных объектов каталога, содержащих запрос без учёта регистра. Недавние запросы хранятся на устройстве. |
 | `GET /catalog/search` | `q` (необязателен для подборок Discovery v1), `kind?`, фильтры → страницы `CatalogCard`. |
 | `GET /catalog/{kind}/{id}` | `EVENT` → тот же `Event`, что и в деталях афиши. Другие типы → `{card: CatalogCard, description}`. |
 | `GET /events` | Афиша, фильтры и курсор → страницы `CatalogCard`, по умолчанию предстоящие по `startsAt, id`. |
