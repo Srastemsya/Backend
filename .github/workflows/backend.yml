@@ -51,7 +51,9 @@ jobs:
           DEPLOY_ENV: ${{ github.ref_name == 'main' && 'demo' || 'staging' }}
         run: |
           : "${SSH_PRIVATE_KEY:?Set SSH_PRIVATE_KEY}" "${SSH_KNOWN_HOSTS:?Set SSH_KNOWN_HOSTS}"
-          [[ "$API_DOMAIN" =~ ^[a-z0-9.-]+$ ]] || { echo "Set API_DOMAIN to a lowercase DNS hostname"; exit 2; }
+          if [[ "$DEPLOY_ENV" == demo ]]; then
+            [[ "$API_DOMAIN" =~ ^[a-z0-9.-]+$ ]] || { echo "Set API_DOMAIN to a lowercase DNS hostname"; exit 2; }
+          fi
           umask 077
           tmp="$(mktemp -d)"
           trap 'rm -rf "$tmp"' EXIT
@@ -62,7 +64,13 @@ jobs:
           release="srastemsya/$DEPLOY_ENV/releases/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           docker save "$BACKEND_IMAGE" | gzip > "$tmp/runtime.tar.gz"
           tar -cf - compose.yaml compose.deploy.yaml compose.dev.yaml nginx.conf dev-media scripts/deploy.sh -C "$tmp" runtime.tar.gz |
-            "${ssh_cmd[@]}" "$target" "umask 077; mkdir -p '$release' && tar -xf - -C '$release' && bash '$release/scripts/deploy.sh' '$DEPLOY_ENV' '$GITHUB_SHA' && sudo -n /usr/local/sbin/srastemsya-configure-https '$DEPLOY_ENV' '$API_DOMAIN'"
+            "${ssh_cmd[@]}" "$target" "umask 077; mkdir -p '$release' && tar -xf - -C '$release' && bash '$release/scripts/deploy.sh' '$DEPLOY_ENV' '$GITHUB_SHA'"
+          if [[ "$DEPLOY_ENV" == demo ]]; then
+            "${ssh_cmd[@]}" "$target" "sudo -n /usr/local/sbin/srastemsya-configure-https '$DEPLOY_ENV' '$API_DOMAIN'"
+            public_url="https://$API_DOMAIN"
+          else
+            public_url="http://$SSH_HOST"
+          fi
           for service in identity catalog swipes; do
-            curl --fail --silent --show-error --max-time 10 "https://$API_DOMAIN/$service/health"
+            curl --fail --silent --show-error --max-time 10 "$public_url/$service/health"
           done
