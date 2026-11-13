@@ -160,6 +160,7 @@ def seed(db):
 
 
     seed_swipes(db)
+    seed_lobby(db)
     seed_photos(db, objects)
 
 
@@ -217,3 +218,43 @@ def seed_swipes(db):
                   dev_account_id(1) if starts else None, starts,
                   starts + timedelta(hours=2) if starts else None,
                   "Asia/Vladivostok" if starts else None))
+
+
+DEV_LOBBY_MIX_START = datetime(2090, 2, 1, tzinfo=timezone.utc)
+DEV_LOBBY_SHORT_START = datetime(2090, 3, 1, tzinfo=timezone.utc)
+DEV_LOBBY_TWO_START = datetime(2090, 3, 2, tzinfo=timezone.utc)
+
+
+def lobby_mix_category(index):
+    if index <= 10:
+        return "dev-lobby-a" if index % 2 else "dev-lobby-b"
+    return ("dev-lobby-a", "dev-lobby-b", "dev-lobby-c")[(index - 11) % 3]
+
+
+def seed_lobby(db):
+    for category, label, position in [
+        ("dev-lobby-a", "Комната: смешанный набор A", 92),
+        ("dev-lobby-b", "Комната: смешанный набор B", 93),
+        ("dev-lobby-c", "Комната: смешанный набор C", 94),
+        ("dev-lobby-short", "Комната: короткий набор", 95),
+        ("dev-lobby-two", "Комната: двухраундовый набор", 96),
+    ]:
+        db.execute("INSERT INTO catalog_categories VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+                   (category, label, ["EVENT"], position))
+    for prefix, count, start, title, category_for in [
+        ("dev-lobby-mix", 35, DEV_LOBBY_MIX_START, "Смешанный набор", lobby_mix_category),
+        ("dev-lobby-short", 4, DEV_LOBBY_SHORT_START, "Короткий набор", lambda index: "dev-lobby-short"),
+        ("dev-lobby-two", 14, DEV_LOBBY_TWO_START, "Двухраундовый набор", lambda index: "dev-lobby-two"),
+    ]:
+        for index in range(1, count + 1):
+            identifier = f"{prefix}-{index:02}"
+            name = f"{title} {index:02}"
+            starts = start + timedelta(minutes=index)
+            db.execute("""
+                INSERT INTO catalog_objects (
+                    kind, id, title, description, category_id, latitude, longitude, address,
+                    price_minor, published, organizer_id, starts_at, ends_at, time_zone
+                ) VALUES ('EVENT', %s, %s, %s, %s, 43.12, 131.9, 'Владивосток', 1000, true, %s, %s, %s, 'Asia/Vladivostok')
+                ON CONFLICT DO NOTHING
+            """, (identifier, name, f"{name}. Стендовое событие комнаты.", category_for(index),
+                  dev_account_id(1), starts, starts + timedelta(hours=2)))

@@ -24,7 +24,7 @@ internal_router = APIRouter(prefix="/internal/identity")
 OTP = os.getenv("DEV_OTP", "0427")
 PEPPER = os.environ.get("IDENTITY_SECRET", "").encode() or (KEYS / "identity-secret").read_bytes()
 REPLAY = Fernet(base64.urlsafe_b64encode(hashlib.sha256(b"replay:" + PEPPER).digest()))
-CONTACTS = [f"person{n}@example.test" for n in range(1, 6)]
+CONTACTS = [f"person{n}@example.test" for n in range(1, 11)]
 DEV_CONTACTS = set(CONTACTS + ["new@example.test", "+15550100100"])
 
 
