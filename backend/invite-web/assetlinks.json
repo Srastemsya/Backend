@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "fefu.prime.srastem.preview",
+      "sha256_cert_fingerprints": [
+        "4A:B4:4E:F8:A4:4C:74:1C:4D:94:C1:5F:62:50:D2:AF:2E:98:F6:74:1F:38:54:DC:3A:F4:6C:37:D4:F9:5E:82"
+      ]
+    }
+  }
+]
