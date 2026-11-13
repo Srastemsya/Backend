@@ -96,9 +96,9 @@
 
 `Room = {id, name: string|null, ownerId, state: LOBBY|VOTING|REFRESHING|MATCHED|EXHAUSTED|CLOSED, version, members: [{userId, displayName}], filters: FeedFilters|null, round: Round|null, result: RoomMatch|LegacyRoomMatch|null}`.
 
-`RoomMatch = {winner: CatalogRef, basis: THRESHOLD, likes: integer, memberCount: integer}`. `LegacyRoomMatch = {winner: CatalogRef}` используется для результатов, сохранённых до BE-L03.
+`RoomMatch = {winner: CatalogRef, basis: THRESHOLD|TOP_SCORE, likes: integer, memberCount: integer}`. `LegacyRoomMatch = {winner: CatalogRef}` используется для результатов, сохранённых до BE-L03.
 
-`Round = {id, number, expiresAt, memberCount, finishedCount, candidates: CatalogCard[], myVotes: [{candidate: CatalogRef, choice: LIKE|PASS}], myFinished: boolean}`. `number` — порядковый номер раунда в комнате, начиная с 1. `expiresAt` — срок текущего раунда в RFC 3339 UTC, через 30 минут от его создания. В `LOBBY` раунд равен `null`. Чужие голоса в snapshot отсутствуют. Для новых матчей `THRESHOLD` означает, что победитель набрал не меньше 70% лайков от состава раунда. `likes` — число лайков победителя, `memberCount` — размер состава. Побеждает карточка с максимумом лайков, при равенстве — более ранняя в пуле.
+`Round = {id, number, expiresAt, memberCount, finishedCount, candidates: CatalogCard[], myVotes: [{candidate: CatalogRef, choice: LIKE|PASS}], myFinished: boolean}`. `number` — порядковый номер раунда в комнате, начиная с 1. `expiresAt` — срок текущего раунда в RFC 3339 UTC, через 30 минут от его создания. В `LOBBY` раунд равен `null`. Чужие голоса в snapshot отсутствуют. Для новых матчей `THRESHOLD` означает, что победитель набрал не меньше 70% лайков от состава раунда. `likes` — число лайков победителя, `memberCount` — размер состава. Для `THRESHOLD` побеждает карточка с максимумом лайков, при равенстве — более ранняя в пуле. `TOP_SCORE` означает выбор карточки с максимумом лайков за все завершённые раунды после исчерпания непоказанных кандидатов. При равенстве выбирается карточка более раннего раунда, затем более ранняя в пуле. При `TOP_SCORE` комната возвращает `MATCHED` и `round=null`. Без лайков при исчерпании и при пустом стартовом пуле комната возвращает `EXHAUSTED`, `round=null` и `result=null`.
 
 | Метод и путь | Вход → выход |
 |---|---|

@@ -13,3 +13,15 @@ def category_weights(history):
 
 def order_candidates(items, weights):
     return sorted(items, key=lambda card: -weights.get(card["categoryId"], 0))
+
+
+
+def top_score(history):
+    best = None
+    highest_likes = 0
+    for completed_round in history:
+        for card in completed_round["cards"]:
+            if card["likes"] > highest_likes:
+                highest_likes = card["likes"]
+                best = card["ref"], highest_likes
+    return best
