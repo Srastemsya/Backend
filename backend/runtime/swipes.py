@@ -17,7 +17,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
-from room_rules import passes_threshold
+from room_rules import category_weights, order_candidates, passes_threshold
 from runtime import ApiError, CACHE, ENV, authenticate, connect
 
 router = APIRouter(prefix="/v1")
@@ -343,7 +343,9 @@ def join(request: Request, user_id: Viewer, key: IdempotencyKey, body: JoinBody)
 
 def open_round(data, items, now):
     used = set(data["used"])
-    candidates = [card for card in items if card["ref"]["id"] not in used][:ROOM_POOL_SIZE]
+    unseen = [card for card in items if card["ref"]["id"] not in used]
+    weights = category_weights(data.get("history", []))
+    candidates = order_candidates(unseen, weights)[:ROOM_POOL_SIZE]
     if not candidates:
         data.update(state="EXHAUSTED", round=None)
         return
@@ -422,12 +424,22 @@ def vote(request: Request, identifier: str, round_id: str, kind: Kind, candidate
     return update_round(request, identifier, user_id, action)
 
 
-def winner(current, member_count):
-    counts = [sum(votes.get(card["ref"]["id"]) == "LIKE" for votes in current["votes"].values())
-              for card in current["candidates"]]
-    index = counts.index(max(counts))
-    if passes_threshold(counts[index], member_count):
-        return current["candidates"][index]["ref"], counts[index]
+def round_summary(current, member_count):
+    cards = []
+    for card in current["candidates"]:
+        card_id = card["ref"]["id"]
+        likes = sum(votes.get(card_id) == "LIKE" for votes in current["votes"].values())
+        cards.append({
+            "ref": card["ref"], "categoryId": card["categoryId"],
+            "likes": likes, "passes": member_count - likes,
+        })
+    return {"number": current.get("number", 1), "cards": cards}
+
+
+def winner(cards, member_count):
+    best = max(cards, key=lambda card: card["likes"])
+    if passes_threshold(best["likes"], member_count):
+        return best["ref"], best["likes"]
     return None
 
 
@@ -443,7 +455,9 @@ def finish(request: Request, identifier: str, round_id: str, user_id: Viewer,
         finished = [*current["finished"], user_id]
         member_count = len(data["members"])
         if len(finished) == member_count:
-            selected = winner(current, member_count)
+            summary = round_summary(current, member_count)
+            data.setdefault("history", []).append(summary)
+            selected = winner(summary["cards"], member_count)
             if selected is None:
                 candidates = room_candidates(request, data["filters"])
                 open_round(data, candidates, now)
