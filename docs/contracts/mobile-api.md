@@ -92,6 +92,8 @@
 
 ## BE-04 · Подборка и комната
 
+Правила комнаты описаны в [контракте комнаты v2](lobby-v2.md) и в разделе [«Свайпы в комнате» Discovery v1](discovery-v1.md#свайпы-в-комнате).
+
 `FeedFilters = {kind: PLACE|EVENT, categoryId?, localDate?, budgetTotal: Money|null, partySize?}`. Предложение для сравнения общей суммы с ценой на человека — передавать `partySize` при заданном бюджете, сверять `price.amountMinor * partySize <= budgetTotal.amountMinor`. Для комнаты берётся размер зафиксированного состава. Правила источников цены и неизвестной стоимости подлежат согласованию.
 
 `Room = {id, name: string|null, ownerId, state: LOBBY|VOTING|REFRESHING|MATCHED|EXHAUSTED|CLOSED, version, members: [{userId, displayName}], filters: FeedFilters|null, round: Round|null, result: RoomMatch|LegacyRoomMatch|null}`.
@@ -102,12 +104,12 @@
 
 | Метод и путь | Вход → выход |
 |---|---|
-| `GET /feed/candidates` | Фильтры и `cursor?` → страницы `CatalogCard`. В рамках одной выдачи карточки не повторяются. |
+| `GET /feed/candidates` | Фильтры и `cursor?` → страницы до 20 `CatalogCard`. В рамках одной выдачи карточки не повторяются. |
 | `POST /rooms` | `{name?}` → `Room` в `LOBBY`, создатель уже участник. |
 | `POST /rooms/{id}/invites` | Только владелец в `LOBBY` → `{url, expiresAt}`. |
 | `POST /room-invites/join` | `{token}` → `Room`. Только до старта, уже состоящий участник получает текущий snapshot. |
 | `GET /rooms/{id}` | Только участник → текущий `Room`. Клиент может опрашивать при ожидании и после переподключения. |
-| `POST /rooms/{id}/start` | Только владелец в `LOBBY`, тело `{filters}` → `Room`. Пул и состав фиксируются атомарно. |
+| `POST /rooms/{id}/start` | Только владелец в `LOBBY`, тело `{filters}` → `Room`. Пул из максимум 10 карточек и состав фиксируются атомарно. |
 | `PUT /rooms/{id}/rounds/{roundId}/votes/{kind}/{candidateId}` | `{choice: LIKE\|PASS}` → `Room`. Изменение голоса до завершения своего прохода — рабочее предложение. |
 | `PUT /rooms/{id}/rounds/{roundId}/completion` | Пустое тело → `Room`. Проверить наличие голоса по каждой карточке. Повтор уже принятого завершения возвращает текущий snapshot даже после смены раунда. |
 
