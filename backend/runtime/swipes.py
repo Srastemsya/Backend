@@ -17,6 +17,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
+from room_rules import passes_threshold
 from runtime import ApiError, CACHE, ENV, authenticate, connect
 
 router = APIRouter(prefix="/v1")
@@ -416,7 +417,9 @@ def winner(current, member_count):
     counts = [sum(votes.get(card["ref"]["id"]) == "LIKE" for votes in current["votes"].values())
               for card in current["candidates"]]
     index = counts.index(max(counts))
-    return current["candidates"][index]["ref"] if counts[index] * 2 > member_count else None
+    if passes_threshold(counts[index], member_count):
+        return current["candidates"][index]["ref"], counts[index]
+    return None
 
 
 @router.put("/rooms/{identifier}/rounds/{round_id}/completion")
@@ -436,7 +439,11 @@ def finish(request: Request, identifier: str, round_id: str, user_id: Viewer,
                 candidates = room_candidates(request, data["filters"])
                 open_round(data, candidates)
             else:
-                data.update(state="MATCHED", result={"winner": selected})
+                candidate, likes = selected
+                data.update(state="MATCHED", result={
+                    "winner": candidate, "basis": "THRESHOLD", "likes": likes,
+                    "memberCount": member_count,
+                })
         current["finished"] = finished
         data["completions"][round_id] = finished
         return True
