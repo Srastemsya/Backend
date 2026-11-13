@@ -98,7 +98,7 @@
 
 `RoomMatch = {winner: CatalogRef, basis: THRESHOLD, likes: integer, memberCount: integer}`. `LegacyRoomMatch = {winner: CatalogRef}` используется для результатов, сохранённых до BE-L03.
 
-`Round = {id, number, memberCount, finishedCount, candidates: CatalogCard[], myVotes: [{candidate: CatalogRef, choice: LIKE|PASS}], myFinished: boolean}`. `number` — порядковый номер раунда в комнате, начиная с 1. В `LOBBY` раунд равен `null`. Чужие голоса в snapshot отсутствуют. Для новых матчей `THRESHOLD` означает, что победитель набрал не меньше 70% лайков от состава раунда. `likes` — число лайков победителя, `memberCount` — размер состава. Побеждает карточка с максимумом лайков, при равенстве — более ранняя в пуле.
+`Round = {id, number, expiresAt, memberCount, finishedCount, candidates: CatalogCard[], myVotes: [{candidate: CatalogRef, choice: LIKE|PASS}], myFinished: boolean}`. `number` — порядковый номер раунда в комнате, начиная с 1. `expiresAt` — срок текущего раунда в RFC 3339 UTC, через 30 минут от его создания. В `LOBBY` раунд равен `null`. Чужие голоса в snapshot отсутствуют. Для новых матчей `THRESHOLD` означает, что победитель набрал не меньше 70% лайков от состава раунда. `likes` — число лайков победителя, `memberCount` — размер состава. Побеждает карточка с максимумом лайков, при равенстве — более ранняя в пуле.
 
 | Метод и путь | Вход → выход |
 |---|---|
@@ -111,7 +111,7 @@
 | `PUT /rooms/{id}/rounds/{roundId}/votes/{kind}/{candidateId}` | `{choice: LIKE\|PASS}` → `Room`. Изменение голоса до завершения своего прохода — рабочее предложение. |
 | `PUT /rooms/{id}/rounds/{roundId}/completion` | Пустое тело → `Room`. Проверить наличие голоса по каждой карточке. Повтор уже принятого завершения возвращает текущий snapshot даже после смены раунда. |
 
-Каждое изменение snapshot, включая сохранение голоса, повышает `version`. Клиент игнорирует snapshot с меньшей версией. Состав, пулы и результаты сохраняются на сервере. Новый голос для завершённого раунда возвращает `409 STALE_ROUND`. До согласования тайм-аута и выхода из раунда контракт описывает happy path с восстановлением соединения.
+Каждое изменение snapshot, включая сохранение голоса, повышает `version`. Клиент игнорирует snapshot с меньшей версией. Состав, пулы и результаты сохраняются на сервере. Новый голос для завершённого раунда возвращает `409 STALE_ROUND`. По истечении срока незавершённого раунда комната переходит в `CLOSED` с `round=null` и `result=null`.
 
 ## BE-05 · История, отправка и вложения
 

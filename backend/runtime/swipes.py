@@ -101,6 +101,10 @@ def request_clock(request):
     return lambda: fixed
 
 
+def utc_timestamp(value):
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
 def internal_read(request, host, path, query):
     headers = {}
     if request.headers.get("Authorization"):
@@ -199,9 +203,10 @@ def snapshot(room, user_id):
     current = data["round"]
     if current:
         votes = current["votes"].get(user_id, {})
+        expires_at = current.get("expiresAt") or utc_timestamp(room["expires_at"])
         result["round"] = {
             "id": current["id"], "number": current.get("number", 1),
-            "memberCount": len(data["members"]),
+            "expiresAt": expires_at, "memberCount": len(data["members"]),
             "finishedCount": len(current["finished"]), "candidates": current["candidates"],
             "myVotes": [{"candidate": card["ref"], "choice": votes[card["ref"]["id"]]}
                         for card in current["candidates"] if card["ref"]["id"] in votes],
@@ -211,6 +216,9 @@ def snapshot(room, user_id):
 
 
 def save(db, room, changes):
+    current = room["snapshot"]["round"]
+    if current and current.get("expiresAt"):
+        room["expires_at"] = datetime.fromisoformat(current["expiresAt"])
     room["version"] += 1
     db.execute("""
         UPDATE swipe_rooms SET version = %s, snapshot = %s, expires_at = %s WHERE id = %s
@@ -301,7 +309,7 @@ def invite(request: Request, identifier: str, user_id: Viewer, key: IdempotencyK
         expires = now + LIFETIME
         db.execute("INSERT INTO swipe_invites VALUES (%s, %s, %s)", (digest(token), identifier, expires))
         return {"url": f"srastemsya://room-invites/join?token={token}",
-                "expiresAt": expires.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")}
+                "expiresAt": utc_timestamp(expires)}
 
     return post(user_id, f"invite:{identifier}", key, {}, action)
 
@@ -333,7 +341,7 @@ def join(request: Request, user_id: Viewer, key: IdempotencyKey, body: JoinBody)
     return post(user_id, "join", key, body.model_dump(mode="json"), action)
 
 
-def open_round(data, items):
+def open_round(data, items, now):
     used = set(data["used"])
     candidates = [card for card in items if card["ref"]["id"] not in used][:ROOM_POOL_SIZE]
     if not candidates:
@@ -343,6 +351,7 @@ def open_round(data, items):
     number = data.get("roundNumber", 0) + 1
     data["roundNumber"] = number
     data.update(state="VOTING", round={"id": str(uuid4()), "number": number, "candidates": candidates,
+                                        "expiresAt": utc_timestamp(now + LIFETIME),
                                         "votes": {}, "finished": []})
 
 
@@ -360,8 +369,7 @@ def start(request: Request, identifier: str, user_id: Viewer, key: IdempotencyKe
         if len(data["members"]) < 2:
             raise ApiError(409, "INVALID_STATE")
         data["filters"] = {**filters, "partySize": len(data["members"])}
-        open_round(data, room_candidates(request, data["filters"]))
-        room["expires_at"] = clock() + LIFETIME
+        open_round(data, room_candidates(request, data["filters"]), clock())
         save(db, room, changes)
         return snapshot(room, user_id)
 
@@ -381,9 +389,10 @@ def update_round(request, identifier, user_id, action):
     changes = {}
     error = None
     with db_connection() as db:
-        room = read_room(db, identifier, user_id, request_clock(request)(), changes)
+        now = request_clock(request)()
+        room = read_room(db, identifier, user_id, now, changes)
         try:
-            if action(room["snapshot"]):
+            if action(room["snapshot"], now):
                 save(db, room, changes)
         except ApiError as failure:
             # Expiry is a committed transition even if the requested mutation is rejected.
@@ -398,7 +407,7 @@ def update_round(request, identifier, user_id, action):
 @router.put("/rooms/{identifier}/rounds/{round_id}/votes/{kind}/{candidate_id}")
 def vote(request: Request, identifier: str, round_id: str, kind: Kind, candidate_id: str,
          user_id: Viewer, body: VoteBody):
-    def action(data):
+    def action(data, _now):
         current = get_round(data, round_id)
         if user_id in current["finished"]:
             raise ApiError(409, "INVALID_STATE")
@@ -425,7 +434,7 @@ def winner(current, member_count):
 @router.put("/rooms/{identifier}/rounds/{round_id}/completion")
 def finish(request: Request, identifier: str, round_id: str, user_id: Viewer,
            body: EmptyBody | None = None):
-    def action(data):
+    def action(data, now):
         if user_id in data["completions"].get(round_id, []):
             return False
         current = get_round(data, round_id)
@@ -437,7 +446,7 @@ def finish(request: Request, identifier: str, round_id: str, user_id: Viewer,
             selected = winner(current, member_count)
             if selected is None:
                 candidates = room_candidates(request, data["filters"])
-                open_round(data, candidates)
+                open_round(data, candidates, now)
             else:
                 candidate, likes = selected
                 data.update(state="MATCHED", result={
