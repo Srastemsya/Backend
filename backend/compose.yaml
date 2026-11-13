@@ -63,6 +63,7 @@ services:
     environment:
       <<: *env
       SERVICE: swipes
+      ROOM_INVITE_HTTPS: ${ROOM_INVITE_HTTPS:-false}
       DATABASE_URL: postgresql://swipes:${SWIPES_DB_PASSWORD:-swipes-local}@swipes-db/swipes
     depends_on:
       swipes-db: {condition: service_healthy}
@@ -139,6 +140,8 @@ services:
       swipes: {condition: service_healthy}
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./invite-web/join.html:/usr/share/nginx/invite-web/join.html:ro
+      - ${ASSETLINKS_FILE:-./invite-web/assetlinks.json}:/usr/share/nginx/invite-web/assetlinks.json:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
       interval: 3s

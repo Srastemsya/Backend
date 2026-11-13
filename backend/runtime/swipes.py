@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import secrets
 from datetime import date, datetime, timedelta, timezone
 from enum import Enum
@@ -308,7 +309,10 @@ def invite(request: Request, identifier: str, user_id: Viewer, key: IdempotencyK
         token = secrets.token_urlsafe(32)
         expires = now + LIFETIME
         db.execute("INSERT INTO swipe_invites VALUES (%s, %s, %s)", (digest(token), identifier, expires))
-        return {"url": f"srastemsya://room-invites/join?token={token}",
+        base = ("https://srastemsya.nixbi.ru/room-invites/join"
+                if os.getenv("ROOM_INVITE_HTTPS", "false").lower() == "true"
+                else "srastemsya://room-invites/join")
+        return {"url": f"{base}?{urlencode({'token': token})}",
                 "expiresAt": utc_timestamp(expires)}
 
     return post(user_id, f"invite:{identifier}", key, {}, action)

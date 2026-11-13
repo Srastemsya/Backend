@@ -14,6 +14,8 @@ root="$HOME/srastemsya/$environment"
 test -r "$root/.env"
 cd "$(dirname "$0")/.."
 # The release is extracted under umask 077. Nginx workers serve these public files.
+chmod 755 invite-web
+chmod 644 invite-web/*
 chmod 755 dev-media
 chmod 644 dev-media/*.jpg
 export BACKEND_IMAGE="srastemsya-backend:$revision"

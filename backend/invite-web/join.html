@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Приглашение в комнату</title></head>
+<body>
+  <main>
+    <h1>Приглашение в комнату</h1>
+    <p>Откройте приглашение в приложении «Срастёмся».</p>
+    <a id="open">Открыть в приложении</a>
+  </main>
+  <script>
+    const token = new URLSearchParams(window.location.search).get('token');
+    if (token !== null) {
+      document.getElementById('open').href = 'srastemsya://room-invites/join?token=' + encodeURIComponent(token);
+    }
+  </script>
+</body>
+</html>

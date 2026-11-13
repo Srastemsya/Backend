@@ -52,5 +52,13 @@ NGINX
   nginx -s reload
 fi
 
+# Never log request targets (which may contain invitation tokens) on either
+# the HTTP or HTTPS vhost. Apply also to vhosts created by earlier releases.
+if ! grep -Fq 'access_log off; # invitation privacy' "$config"; then
+  sed -i '/server_name .*;/a\    access_log off; # invitation privacy' "$config"
+  nginx -t
+  nginx -s reload
+fi
+
 certbot --nginx --non-interactive --agree-tos --register-unsafely-without-email --redirect \
   --keep-until-expiring --cert-name "$domain" -d "$domain"

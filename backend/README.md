@@ -157,3 +157,41 @@ Compose с `--no-build`. Обновление сохраняет тома и п�
 Оба стенда принимают mock OTP. Используйте только демонстрационные данные.
 
 [GitHub Actions Environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments) · [Certbot для Nginx](https://certbot.eff.org/instructions?ws=nginx&os=debiantesting)
+
+
+## HTTPS-приглашения в комнаты
+
+Выдача HTTPS-ссылок по умолчанию выключена (`ROOM_INVITE_HTTPS=false`):
+старые и новые ссылки передают тот же токен в `POST /v1/room-invites/join`,
+а открытие страницы через GET не меняет состояние приглашения. До включения
+согласуйте с мобильной командой выпуск приложения с Android App Link для
+`https://srastemsya.nixbi.ru/room-invites/join` и поддержкой старой схемы.
+
+До публикации страницы администратор должен установить обновлённый
+`scripts/configure-https.sh` как `/usr/local/sbin/srastemsya-configure-https`
+и запустить его для нужного окружения и домена. Скрипт отключает access-логи
+внешнего виртуального хоста, включая строку запроса; контейнерный Nginx и
+приложение также не ведут access-логи. Проверьте и другие прокси/CDN перед
+сервером: они не должны записывать query string приглашения. Без этого шага
+токены могут попасть в существующие серверные логи.
+
+Получите у мобильной команды SHA-256 сертификатов подписи обеих сборок и
+создайте на сервере отдельный читаемый Nginx JSON-файл (не подставляйте
+вымышленные отпечатки):
+
+```json
+[
+  {"relation":["delegate_permission/common.handle_all_urls"],"target":{"namespace":"android_app","package_name":"fefu.prime.srastem","sha256_cert_fingerprints":["RELEASE_SHA256"]}},
+  {"relation":["delegate_permission/common.handle_all_urls"],"target":{"namespace":"android_app","package_name":"fefu.prime.srastem.preview","sha256_cert_fingerprints":["PREVIEW_SHA256"]}}
+]
+```
+
+Замените оба значения на отпечатки в формате `AA:BB:…`, задайте абсолютный
+путь к файлу в `ASSETLINKS_FILE` в серверном `.env` и пересоздайте Nginx через
+Compose. Файл по умолчанию содержит пустой массив и не подтверждает ни одно
+приложение. Убедитесь, что публичный HTTPS `/.well-known/assetlinks.json`
+возвращает 200, JSON и оба правильных отпечатка без редиректа, а проверка
+Android App Links прошла для обеих сборок. После подтверждения мобильной
+команды установите `ROOM_INVITE_HTTPS=true` в серверном `.env` и пересоздайте
+swipes. Повторный запрос с прежним ключом идемпотентности может вернуть ранее
+сохранённый URL; старые ссылки должны оставаться рабочими.

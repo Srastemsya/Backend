@@ -62,7 +62,7 @@ jobs:
           target="$SSH_USER@$SSH_HOST"
           release="srastemsya/$DEPLOY_ENV/releases/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           docker save "$BACKEND_IMAGE" | gzip > "$tmp/runtime.tar.gz"
-          tar -cf - compose.yaml compose.deploy.yaml compose.dev.yaml nginx.conf dev-media scripts/deploy.sh -C "$tmp" runtime.tar.gz |
+          tar -cf - compose.yaml compose.deploy.yaml compose.dev.yaml nginx.conf invite-web dev-media scripts/deploy.sh -C "$tmp" runtime.tar.gz |
             "${ssh_cmd[@]}" "$target" "umask 077; mkdir -p '$release' && tar -xf - -C '$release' && bash '$release/scripts/deploy.sh' '$DEPLOY_ENV' '$GITHUB_SHA'"
           "${ssh_cmd[@]}" "$target" "sudo -n /usr/local/sbin/srastemsya-configure-https '$DEPLOY_ENV' '$API_DOMAIN'"
           public_url="https://$API_DOMAIN"
