@@ -1,6 +1,7 @@
 """Catalog-owned schema and idempotent Vladivostok fixtures."""
 
 from datetime import datetime, timedelta, timezone
+from hashlib import sha256
 
 from psycopg.types.json import Jsonb
 
@@ -93,10 +94,27 @@ def migrate(db):
 
 
 DEV_PHOTOS = ("gallery", "workshop", "concert", "waterfront", "cafe", "museum")
+DISCOVERY_PHOTOS = ("pottery", "bookshop", "lighthouse", "greenhouse", "jazz", "roastery")
 OUTDOOR_EVENTS = (
     ("Акустический концерт на закате", "concert"),
     ("Пешая экскурсия вдоль залива", "waterfront"),
     ("Кофе на открытой террасе", "cafe"),
+)
+
+
+DISCOVERY_FIXTURES = (
+    ("pottery", "culture", 43.116, 131.889, "Гончарная студия «Берег»",
+     "Знакомство с гончарным кругом", 120000, 5),
+    ("bookshop", "culture", 43.120, 131.885, "Книжная лавка «Между строк»",
+     "Вечер коротких рассказов", 0, 7),
+    ("lighthouse", "outdoors", 43.074, 131.843, "Смотровая площадка у маяка",
+     "Фотопрогулка к маяку", 0, 9),
+    ("greenhouse", "outdoors", 43.224, 132.002, "Оранжерея «Зелёный двор»",
+     "Экскурсия по тропической оранжерее", 60000, 11),
+    ("jazz", "culture", 43.114, 131.881, "Джаз-клуб «Синяя нота»",
+     "Камерный джазовый концерт", 160000, 13),
+    ("roastery", "food", 43.127, 131.899, "Кофейня-обжарочная «Волна»",
+     "Дегустация кофе на открытой террасе", 90000, 15),
 )
 
 
@@ -128,18 +146,7 @@ def seed(db):
         title, _ = OUTDOOR_EVENTS[(index - 1) % len(OUTDOOR_EVENTS)]
         objects.append(("EVENT", f"dev-vlad-outdoor-{index:02}", title, "outdoors",
                         43.12, 131.9, None, True, index + 4, None))
-    for kind, identifier, title, category, lat, lon, price, published, days, capacity in objects:
-        starts = now + timedelta(days=days) if days else None
-        db.execute("""
-            INSERT INTO catalog_objects (
-                kind, id, title, description, category_id, latitude, longitude,
-                address, price_minor, published, organizer_id, starts_at, ends_at, time_zone, capacity
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            ON CONFLICT DO NOTHING
-        """, (kind, identifier, title, f"{title}. Стендовый объект каталога.", category, lat, lon,
-              "Владивосток", price, published, dev_account_id(1) if starts else None,
-              starts, starts + timedelta(hours=2) if starts else None,
-              "Asia/Vladivostok" if starts else None, capacity))
+    insert_dev_objects(db, objects, now)
     db.execute("""
         INSERT INTO catalog_registrations (id, event_id, user_id, status, created_at)
         VALUES ('dev-vlad-workshop-registration', 'dev-vlad-workshop', %s, 'CONFIRMED', %s)
@@ -162,6 +169,41 @@ def seed(db):
     seed_swipes(db)
     seed_lobby(db)
     seed_photos(db, objects)
+    seed_discovery(db)
+
+
+def seed_discovery(db):
+    now = datetime.now(timezone.utc)
+    for photo, category, lat, lon, place, event, price, days in DISCOVERY_FIXTURES:
+        place_id = f"dev-discovery-{photo}-place"
+        event_id = f"dev-discovery-{photo}-event"
+        event_category = "outdoors" if category == "food" else category
+        objects = (
+            ("PLACE", place_id, place, category, lat, lon, None, True, None, None),
+            ("EVENT", event_id, event, event_category, lat, lon, price, True, days, None),
+        )
+        insert_dev_objects(db, objects, now)
+        attach_dev_photo(db, "PLACE", place_id, photo)
+        attach_dev_photo(db, "EVENT", event_id, photo)
+
+
+def insert_dev_objects(db, objects, now):
+    for kind, identifier, title, category, lat, lon, price, published, days, capacity in objects:
+        if kind == "EVENT":
+            digest = sha256(identifier.encode()).digest()
+            lat = 43.12 + (int.from_bytes(digest[:2], "big") / 65535 - 0.5) * 0.07
+            lon = 131.88 + (int.from_bytes(digest[2:4], "big") / 65535 - 0.5) * 0.12
+        starts = now + timedelta(days=days) if days else None
+        db.execute("""
+            INSERT INTO catalog_objects (
+                kind, id, title, description, category_id, latitude, longitude,
+                address, price_minor, published, organizer_id, starts_at, ends_at, time_zone, capacity
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT DO NOTHING
+        """, (kind, identifier, title, f"{title}. Стендовый объект каталога.", category, lat, lon,
+              "Владивосток", price, published, dev_account_id(1) if starts else None,
+              starts, starts + timedelta(hours=2) if starts else None,
+              "Asia/Vladivostok" if starts else None, capacity))
 
 
 def seed_photos(db, objects):
@@ -180,9 +222,20 @@ def seed_photos(db, objects):
         photo = featured.get(identifier, DEV_PHOTOS[index % len(DEV_PHOTOS)])
         attach_dev_photo(db, kind, identifier, photo)
     for index in range(1, 23):
-        photo = DEV_PHOTOS[(index - 1) % len(DEV_PHOTOS)]
+        photo = DISCOVERY_PHOTOS[(index - 1) % len(DISCOVERY_PHOTOS)]
         attach_dev_photo(db, "EVENT", f"dev-swipe-event-{index:02}", photo)
         attach_dev_photo(db, "PLACE", f"dev-swipe-place-{index:02}", photo)
+    lobby_ranges = {
+        "dev-lobby-mix": 35,
+        "dev-lobby-short": 4,
+        "dev-lobby-two": 14,
+    }
+    position = 0
+    for prefix, count in lobby_ranges.items():
+        for index in range(1, count + 1):
+            photo = DISCOVERY_PHOTOS[position % len(DISCOVERY_PHOTOS)]
+            attach_dev_photo(db, "EVENT", f"{prefix}-{index:02}", photo)
+            position += 1
 
 
 def attach_dev_photo(db, kind, identifier, photo):
