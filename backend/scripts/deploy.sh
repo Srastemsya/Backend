@@ -4,7 +4,7 @@ set -euo pipefail
 environment=$1
 revision=$2
 case "$environment" in
-  staging) port=18080 ;;
+  staging) port=18080; export ROOM_INVITE_HTTPS=true ;;
   demo) port=8080 ;;
   *) exit 2 ;;
 esac
