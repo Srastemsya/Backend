@@ -1,8 +1,8 @@
 # Swipes
 
-Владеет снимками одиночной выдачи, курсорами и состоянием комнат в собственной PostgreSQL. Получает кандидатов и публичные данные участников через внутренние HTTP-маршруты catalog и identity. Redis Pub/Sub передаёт номер версии комнаты для пробуждения long polling. В Compose доступен как `swipes:8000`.
+Владеет снимками одиночной выдачи, курсорами и состоянием комнат в собственной PostgreSQL. Получает кандидатов и публичные данные участников через внутренние HTTP-маршруты catalog и identity. Redis Pub/Sub передаёт номер версии комнаты для пробуждения long polling. Канал `room:{id}` получает номер версии после фиксации изменения в PostgreSQL. Сообщение служит сигналом перечитать снимок комнаты из PostgreSQL. В Compose доступен как `swipes:8000`.
 
-Все маршруты требуют Bearer JWT завершённого профиля. POST требует `Idempotency-Key`.
+Маршруты `/v1/` требуют Bearer JWT завершённого профиля. POST требует `Idempotency-Key`.
 
 | Метод и путь | Вход | Успешный ответ |
 |---|---|---|
@@ -17,4 +17,6 @@
 
 Long polling использует `afterVersion` последнего снимка и ожидание до 25 секунд. Для постороннего комната скрыта с `404 NOT_FOUND`. Истёкшая ссылка для нового участника даёт `410 INVITE_EXPIRED`. Голос для старого раунда даёт `409 STALE_ROUND`, завершение без всех голосов — `409 INVALID_STATE`.
 
-[Одиночная выдача и комнаты](../contracts/discovery-v1.md#свайпы-на-одном-устройстве) · [DTO Room и FeedFilters](../contracts/mobile-api.md#be-04--подборка-и-комната) · [Интеграция с catalog и identity](../contracts/catalog-integration.md) · [Служебные маршруты](README.md#служебные-маршруты)
+[Одиночная выдача и комнаты](../contracts/discovery-v1.md#свайпы-на-одном-устройстве) · [DTO Room и FeedFilters](../contracts/mobile-api.md#be-04--подборка-и-комната) · [Интеграция с catalog и identity](../contracts/catalog-integration.md) · [Контракт комнаты v2](../contracts/lobby-v2.md) · [Готовность и администрирование](README.md#служебные-маршруты)
+
+Через Nginx готовность swipes проверяет `GET /swipes/health`, доступ к административной странице открывает `GET /swipes/admin` с отдельным admin JWT.

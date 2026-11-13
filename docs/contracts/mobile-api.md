@@ -94,9 +94,11 @@
 
 `FeedFilters = {kind: PLACE|EVENT, categoryId?, localDate?, budgetTotal: Money|null, partySize?}`. Предложение для сравнения общей суммы с ценой на человека — передавать `partySize` при заданном бюджете, сверять `price.amountMinor * partySize <= budgetTotal.amountMinor`. Для комнаты берётся размер зафиксированного состава. Правила источников цены и неизвестной стоимости подлежат согласованию.
 
-`Room = {id, name: string|null, ownerId, state: LOBBY|VOTING|REFRESHING|MATCHED|EXHAUSTED|CLOSED, version, members: [{userId, displayName}], filters: FeedFilters|null, round: Round|null, result: {winner: CatalogRef}|null}`.
+`Room = {id, name: string|null, ownerId, state: LOBBY|VOTING|REFRESHING|MATCHED|EXHAUSTED|CLOSED, version, members: [{userId, displayName}], filters: FeedFilters|null, round: Round|null, result: RoomMatch|LegacyRoomMatch|null}`.
 
-`Round = {id, number, memberCount, finishedCount, candidates: CatalogCard[], myVotes: [{candidate: CatalogRef, choice: LIKE|PASS}], myFinished: boolean}`. `number` — порядковый номер раунда в комнате, начиная с 1. В `LOBBY` раунд равен `null`. Чужие голоса в snapshot отсутствуют. Победитель один после согласования tie-break. Для тестового стенда предлагается максимум лайков, при равенстве — порядок в пуле. До утверждения правила этот порядок является тестовым.
+`RoomMatch = {winner: CatalogRef, basis: THRESHOLD, likes: integer, memberCount: integer}`. `LegacyRoomMatch = {winner: CatalogRef}` используется для результатов, сохранённых до BE-L03.
+
+`Round = {id, number, memberCount, finishedCount, candidates: CatalogCard[], myVotes: [{candidate: CatalogRef, choice: LIKE|PASS}], myFinished: boolean}`. `number` — порядковый номер раунда в комнате, начиная с 1. В `LOBBY` раунд равен `null`. Чужие голоса в snapshot отсутствуют. Для новых матчей `THRESHOLD` означает, что победитель набрал не меньше 70% лайков от состава раунда. `likes` — число лайков победителя, `memberCount` — размер состава. Побеждает карточка с максимумом лайков, при равенстве — более ранняя в пуле.
 
 | Метод и путь | Вход → выход |
 |---|---|
