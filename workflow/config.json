@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "spec_dir": "workflow/specs/discovery-v1",
+  "spec_dir": "workflow/specs/lobby-v2",
   "base_branch": "dev",
   "max_fix_rounds": 3,
   "max_active_specs": 1,

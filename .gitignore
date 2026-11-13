@@ -38,3 +38,9 @@ build/
 /.opencode/package.json
 /.opencode/package-lock.json
 /.opencode/bun.lock
+
+# Local OpenCode setup and handoff
+/.opencode/launch
+/.opencode/provider-config.py
+/OPENCODE-TEAM.md
+/README.opencode.md
