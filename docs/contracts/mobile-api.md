@@ -96,7 +96,7 @@
 
 `Room = {id, name: string|null, ownerId, state: LOBBY|VOTING|REFRESHING|MATCHED|EXHAUSTED|CLOSED, version, members: [{userId, displayName}], filters: FeedFilters|null, round: Round|null, result: {winner: CatalogRef}|null}`.
 
-`Round = {id, memberCount, finishedCount, candidates: CatalogCard[], myVotes: [{candidate: CatalogRef, choice: LIKE|PASS}], myFinished: boolean}`. В `LOBBY` раунд равен `null`. Чужие голоса в snapshot отсутствуют. Победитель один после согласования tie-break. Для тестового стенда предлагается максимум лайков, при равенстве — порядок в пуле. До утверждения правила этот порядок является тестовым.
+`Round = {id, number, memberCount, finishedCount, candidates: CatalogCard[], myVotes: [{candidate: CatalogRef, choice: LIKE|PASS}], myFinished: boolean}`. `number` — порядковый номер раунда в комнате, начиная с 1. В `LOBBY` раунд равен `null`. Чужие голоса в snapshot отсутствуют. Победитель один после согласования tie-break. Для тестового стенда предлагается максимум лайков, при равенстве — порядок в пуле. До утверждения правила этот порядок является тестовым.
 
 | Метод и путь | Вход → выход |
 |---|---|

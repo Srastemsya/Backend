@@ -21,6 +21,7 @@ from runtime import ApiError, CACHE, ENV, authenticate, connect
 
 router = APIRouter(prefix="/v1")
 PAGE_SIZE = 20
+ROOM_POOL_SIZE = 10
 LIFETIME = timedelta(minutes=30)
 BigInt = Annotated[int, Field(ge=0, le=9223372036854775807)]
 PartySize = Annotated[int, Field(ge=1, le=9223372036854775807)]
@@ -198,7 +199,8 @@ def snapshot(room, user_id):
     if current:
         votes = current["votes"].get(user_id, {})
         result["round"] = {
-            "id": current["id"], "memberCount": len(data["members"]),
+            "id": current["id"], "number": current.get("number", 1),
+            "memberCount": len(data["members"]),
             "finishedCount": len(current["finished"]), "candidates": current["candidates"],
             "myVotes": [{"candidate": card["ref"], "choice": votes[card["ref"]["id"]]}
                         for card in current["candidates"] if card["ref"]["id"] in votes],
@@ -332,12 +334,14 @@ def join(request: Request, user_id: Viewer, key: IdempotencyKey, body: JoinBody)
 
 def open_round(data, items):
     used = set(data["used"])
-    candidates = [card for card in items if card["ref"]["id"] not in used][:PAGE_SIZE]
+    candidates = [card for card in items if card["ref"]["id"] not in used][:ROOM_POOL_SIZE]
     if not candidates:
         data.update(state="EXHAUSTED", round=None)
         return
     data["used"].extend(card["ref"]["id"] for card in candidates)
-    data.update(state="VOTING", round={"id": str(uuid4()), "candidates": candidates,
+    number = data.get("roundNumber", 0) + 1
+    data["roundNumber"] = number
+    data.update(state="VOTING", round={"id": str(uuid4()), "number": number, "candidates": candidates,
                                         "votes": {}, "finished": []})
 
 
