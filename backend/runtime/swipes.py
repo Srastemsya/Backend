@@ -17,7 +17,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
-from room_rules import category_weights, order_candidates, passes_threshold
+from room_rules import category_weights, order_candidates, passes_threshold, top_score
 from runtime import ApiError, CACHE, ENV, authenticate, connect
 
 router = APIRouter(prefix="/v1")
@@ -344,10 +344,19 @@ def join(request: Request, user_id: Viewer, key: IdempotencyKey, body: JoinBody)
 def open_round(data, items, now):
     used = set(data["used"])
     unseen = [card for card in items if card["ref"]["id"] not in used]
-    weights = category_weights(data.get("history", []))
+    history = data.get("history", [])
+    weights = category_weights(history)
     candidates = order_candidates(unseen, weights)[:ROOM_POOL_SIZE]
     if not candidates:
-        data.update(state="EXHAUSTED", round=None)
+        selected = top_score(history)
+        if selected is None:
+            data.update(state="EXHAUSTED", round=None, result=None)
+        else:
+            candidate, likes = selected
+            data.update(state="MATCHED", round=None, result={
+                "winner": candidate, "basis": "TOP_SCORE", "likes": likes,
+                "memberCount": len(data["members"]),
+            })
         return
     data["used"].extend(card["ref"]["id"] for card in candidates)
     number = data.get("roundNumber", 0) + 1
