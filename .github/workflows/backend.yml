@@ -42,15 +42,14 @@ jobs:
       - name: Ship image and deploy over SSH
         if: github.event_name == 'push'
         env:
-          SSH_HOST: ${{ vars.SSH_HOST }}
-          SSH_USER: ${{ vars.SSH_USER }}
-          SSH_PORT: ${{ vars.SSH_PORT || '22' }}
+          SSH_HOST: "176.53.253.166"
+          SSH_USER: "tech"
+          SSH_PORT: "22"
           API_DOMAIN: ${{ secrets.API_DOMAIN }}
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
           DEPLOY_ENV: ${{ github.ref_name == 'main' && 'demo' || 'staging' }}
         run: |
-          : "${SSH_HOST:?Set SSH_HOST}" "${SSH_USER:?Set SSH_USER}"
           : "${SSH_PRIVATE_KEY:?Set SSH_PRIVATE_KEY}" "${SSH_KNOWN_HOSTS:?Set SSH_KNOWN_HOSTS}"
           [[ "$API_DOMAIN" =~ ^[a-z0-9.-]+$ ]] || { echo "Set API_DOMAIN to a lowercase DNS hostname"; exit 2; }
           umask 077

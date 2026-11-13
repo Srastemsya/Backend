@@ -7,15 +7,7 @@
 | `staging` | `dev` | Тестовый API | `18080` |
 | `demo` | `main` | API для защиты | `8080` |
 
-## GitHub Environment variables
-
-Добавьте в каждое окружение через **Environment variables**.
-
-| Имя | Значение |
-| --- | --- |
-| `SSH_HOST` | IP или DNS-имя сервера для SSH |
-| `SSH_USER` | Пользователь деплоя на сервере |
-| `SSH_PORT` | Порт SSH. Можно оставить пустым, по умолчанию `22` |
+Оба стенда подключаются по SSH к `tech@176.53.253.166:22`. Адрес, пользователь и порт заданы в [workflow](.github/workflows/backend.yml).
 
 ## GitHub Environment secrets
 

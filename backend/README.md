@@ -114,8 +114,7 @@ Compose с `--no-build`. Обновление сохраняет тома и п�
    Bash, curl и пользователя SSH с доступом к Docker. Убедитесь, что порты
    8080 и 18080 свободны и GitHub-hosted runner может подключиться по SSH.
 2. В GitHub создайте Environments `staging` и `demo`. Ограничьте деплой
-   ветками `dev` и `main` соответственно. Для обоих задайте variables
-   `SSH_HOST`, `SSH_USER` и при необходимости `SSH_PORT`. Добавьте secrets
+   ветками `dev` и `main` соответственно. SSH-адрес `tech@176.53.253.166:22` задан в workflow. Добавьте secrets
    `SSH_PRIVATE_KEY` (отдельный ключ автоматизации для CI) и `SSH_KNOWN_HOSTS`
    (проверенная запись публичного host key сервера). Публичный ключ CI
    добавьте в `authorized_keys` пользователя деплоя.
