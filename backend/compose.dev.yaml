@@ -1,0 +1,15 @@
+services:
+  identity:
+    environment:
+      APP_ENV: dev
+      MOCK_OTP: "true"
+      DEV_OTP: ${DEV_OTP:-0427}
+  catalog:
+    environment:
+      APP_ENV: dev
+  swipes:
+    environment:
+      APP_ENV: dev
+  nginx:
+    volumes:
+      - ./dev-media:/usr/share/nginx/html/dev-media:ro

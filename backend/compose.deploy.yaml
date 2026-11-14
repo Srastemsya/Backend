@@ -1,0 +1,18 @@
+services:
+  keys:
+    build: !reset null
+  identity:
+    build: !reset null
+  catalog:
+    build: !reset null
+  swipes:
+    build: !reset null
+  identity-db:
+    environment:
+      POSTGRES_PASSWORD: ${IDENTITY_DB_PASSWORD:?Set IDENTITY_DB_PASSWORD on the server}
+  catalog-db:
+    environment:
+      POSTGRES_PASSWORD: ${CATALOG_DB_PASSWORD:?Set CATALOG_DB_PASSWORD on the server}
+  swipes-db:
+    environment:
+      POSTGRES_PASSWORD: ${SWIPES_DB_PASSWORD:?Set SWIPES_DB_PASSWORD on the server}

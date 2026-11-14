@@ -1,0 +1,74 @@
+name: Backend CI/CD
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    concurrency:
+      group: backend-${{ github.ref }}
+      cancel-in-progress: false
+    environment: ${{ github.event_name == 'pull_request' && 'ci' || (github.ref_name == 'main' && 'demo' || 'staging') }}
+    env:
+      BACKEND_IMAGE: srastemsya-backend:${{ github.sha }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build backend image
+        run: docker build --tag "$BACKEND_IMAGE" .
+      - name: Start isolated test stack and check readiness
+        env:
+          NGINX_PORT: "18080"
+        run: |
+          compose=(docker compose -p srastemsya-ci -f compose.yaml -f compose.dev.yaml)
+          trap '"${compose[@]}" down --volumes --remove-orphans' EXIT
+          "${compose[@]}" up --no-build --wait --wait-timeout 240
+          for service in identity catalog swipes; do
+            curl --fail --silent --show-error --max-time 10 "http://127.0.0.1:$NGINX_PORT/$service/health"
+          done
+      - name: Ship image and deploy over SSH
+        if: github.event_name == 'push'
+        env:
+          SSH_HOST: "176.53.253.166"
+          SSH_USER: "tech"
+          SSH_PORT: "22"
+          API_DOMAIN: ${{ secrets.API_DOMAIN }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          DEPLOY_ENV: ${{ github.ref_name == 'main' && 'demo' || 'staging' }}
+        run: |
+          : "${SSH_PRIVATE_KEY:?Set SSH_PRIVATE_KEY}" "${SSH_KNOWN_HOSTS:?Set SSH_KNOWN_HOSTS}"
+          if [[ "$DEPLOY_ENV" == staging ]]; then API_DOMAIN=srastemsya.nixbi.ru; fi
+          [[ "$API_DOMAIN" =~ ^[a-z0-9.-]+$ ]] || { echo "Set API_DOMAIN to a lowercase DNS hostname"; exit 2; }
+          umask 077
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$tmp/key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$tmp/known_hosts"
+          ssh_cmd=(ssh -i "$tmp/key" -p "$SSH_PORT" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$tmp/known_hosts")
+          target="$SSH_USER@$SSH_HOST"
+          release="srastemsya/$DEPLOY_ENV/releases/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          docker save "$BACKEND_IMAGE" | gzip > "$tmp/runtime.tar.gz"
+          tar -cf - compose.yaml compose.deploy.yaml compose.dev.yaml nginx.conf invite-web dev-media scripts/deploy.sh scripts/configure-https.sh -C "$tmp" runtime.tar.gz |
+            "${ssh_cmd[@]}" "$target" "umask 077; mkdir -p '$release' && tar -xf - -C '$release'"
+          if [[ "$DEPLOY_ENV" == staging ]]; then
+            "${ssh_cmd[@]}" "$target" "sudo -n install -o root -g root -m 0755 '$release/scripts/configure-https.sh' /usr/local/sbin/srastemsya-configure-https"
+          fi
+          "${ssh_cmd[@]}" "$target" "sudo -n /usr/local/sbin/srastemsya-configure-https '$DEPLOY_ENV' '$API_DOMAIN' && bash '$release/scripts/deploy.sh' '$DEPLOY_ENV' '$GITHUB_SHA'"
+          public_url="https://$API_DOMAIN"
+          for service in identity catalog swipes; do
+            curl --fail --silent --show-error --max-time 10 "$public_url/$service/health"
+          done
